@@ -32,6 +32,7 @@ from .const import (
 from .diagnostics_report import DiagnosticsError, DiagnosticsReporter
 from .locate.recorder import ws_locate_rec
 from .locate.ws import COMMANDS as LOCATE_COMMANDS
+from .models import MAX_MODELS, ModelError, check_model, models_pack
 from .packs import MAX_PACK_SIZE, PackError, module_sha, parts_of, verify_pack
 from .schema import BUILDING_SCHEMA, IMAGE_DATA, empty_building
 from .screens import KINDS, screens_of
@@ -80,6 +81,8 @@ def async_register_commands(hass: HomeAssistant) -> None:
         ws_plans_restore,
         ws_plans_locate,
         ws_packs_list,
+        ws_models_save,
+        ws_models_delete,
         ws_packs_import,
         ws_packs_remove,
         ws_packs_install,
@@ -412,10 +415,50 @@ async def ws_plans_locate(hass: HomeAssistant, connection: websocket_api.ActiveC
 @websocket_api.websocket_command({vol.Required("type"): "neonplan3d/packs/list"})
 @callback
 def ws_packs_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Return the imported furniture packs (every user needs them to see the furniture)."""
+    """Return the imported furniture packs (every user needs them to see the furniture), and the user's own
+    models as one more pack, "My models" (models.py)."""
     if (data := _data(hass, connection, msg)) is None:
         return
-    connection.send_result(msg["id"], {"packs": [_without_code(p) for p in data.packs]})
+    packs = [_without_code(p) for p in data.packs]
+    if (own := models_pack(data.models)) is not None:
+        packs.append(own)
+    connection.send_result(msg["id"], {"packs": packs})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "neonplan3d/models/save", vol.Required("model"): dict})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_models_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Keep one of the user's own furniture models (a new one, or a changed one with the same id)."""
+    if (data := _data(hass, connection, msg)) is None:
+        return
+    try:
+        model = check_model(msg["model"])
+    except ModelError as err:
+        connection.send_error(msg["id"], err.code, str(err))
+        return
+    if len(data.models) >= MAX_MODELS and not any(m["id"] == model["id"] for m in data.models):
+        connection.send_error(msg["id"], "too_many", f"At most {MAX_MODELS} models")
+        return
+    await data.async_save_model(model)
+    connection.send_result(msg["id"], {"id": model["id"]})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "neonplan3d/models/delete", vol.Required("model_id"): vol.All(str, vol.Length(max=40))}
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_models_delete(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Forget one of the user's own furniture models (furniture placed from it says the model is gone)."""
+    if (data := _data(hass, connection, msg)) is None:
+        return
+    if not await data.async_delete_model(msg["model_id"]):
+        connection.send_error(msg["id"], "not_found", "Model not found")
+        return
+    connection.send_result(msg["id"])
 
 
 def _without_code(pack: dict[str, Any]) -> dict[str, Any]:
@@ -623,6 +666,7 @@ def ws_backup_export(hass: HomeAssistant, connection: websocket_api.ActiveConnec
             "main": {k: main.get(k) for k in ("name", "icon", "site")},
             "plans": others,
             "packs": data.packs,
+            "models": data.models,
         },
     )
 
@@ -632,6 +676,7 @@ def ws_backup_export(hass: HomeAssistant, connection: websocket_api.ActiveConnec
         vol.Required("type"): "neonplan3d/backup/import",
         vol.Required("building"): dict,
         vol.Optional("packs", default=[]): [dict],
+        vol.Optional("models"): [dict],
         vol.Optional("main"): dict,
         vol.Optional("plans"): [dict],
     }
@@ -677,6 +722,15 @@ async def ws_backup_import(
             continue
         packs.append({**clean, "source": source, "signature": parts_of(text)[1], "imported_at": time.time()})
     revision = await data.async_restore(complete(building), packs)
+    # the user's own models (a backup from before they existed leaves them as they are)
+    if "models" in msg:
+        models: list[dict[str, Any]] = []
+        for entry in msg["models"]:
+            try:
+                models.append(check_model(entry))
+            except ModelError:
+                skipped.append({"id": str(entry.get("id") or "?"), "reason": "invalid_model"})
+        await data.async_restore_models(models)
     if "plans" in msg:
         main = msg.get("main") or {}
         await data.async_update_plan(MAIN_PLAN, {k: main.get(k) for k in ("name", "icon", "site") if k in main})

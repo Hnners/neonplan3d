@@ -18,8 +18,15 @@ export function isPackCooktop(type: string): boolean {
 }
 
 export interface PackPart {
-  /** A box, a cylinder, or a loft: a box whose top face is another rectangle (sloped sides). */
-  shape: "box" | "cyl" | "loft";
+  /**
+   * A box, a cylinder, or a loft: a box whose top face is another rectangle (sloped sides). A mesh is a part of one of
+   * the user's own models (my-models.ts): its triangles fill the part's box, so it scales with it like the others.
+   */
+  shape: "box" | "cyl" | "loft" | "mesh";
+  /** The part's name in the model it came from (the user's own models). */
+  name?: string;
+  /** A mesh part's triangles (mesh-part.ts): corners packed in base64, each axis a fraction of the part's box. */
+  mesh?: PackMesh;
   /** Centre across and in depth (fractions -0.5..0.5 of the item's width and depth, front at +z). */
   x: number;
   z: number;
@@ -58,6 +65,25 @@ export interface PackPart {
   spin?: "y" | "z";
   /** A live part (3.4): moves or lights with the entity linked to one of the item's slots (live-parts.ts). */
   bind?: PartBind;
+}
+
+/**
+ * The triangles of a mesh part: `v` the corners (three unsigned 16-bit numbers each, 0 … 65535 across the part's box
+ * in x, y and z), `t` the triangles (three corner numbers each, 16-bit, or 32-bit with `big`), both little-endian in
+ * base64.
+ */
+export interface PackMesh {
+  v: string;
+  t: string;
+  big?: boolean;
+}
+
+/** The pack the user's own models are shown in (custom_components/neonplan3d/models.py). */
+export const MODELS_PACK_ID = "local.models";
+
+/** The pack of the user's own models: not from the shop, never removed or reviewed like one. */
+export function isLocalPack(pack: Pick<FurniturePack, "id">): boolean {
+  return pack.id === MODELS_PACK_ID;
 }
 
 /** The axis an item's turning parts (fan blades) turn about, null without such parts. */

@@ -2,7 +2,7 @@
 
 import type { Previews } from "./library-index.ts";
 import type { Building } from "./model.ts";
-import type { FurniturePack } from "./packs.ts";
+import type { FurniturePack, PackItem } from "./packs.ts";
 import type { HomeAssistant } from "./types.ts";
 
 /** The first floor plan, the one every installation had before there were several. */
@@ -269,6 +269,16 @@ export async function restoreSnapshot(hass: HomeAssistant, snapshotId: string, p
   return res.revision;
 }
 
+/** Keeps one of the user's own furniture models (my-models.ts); one with the same id is replaced. Admins only. */
+export async function saveModel(hass: HomeAssistant, model: PackItem): Promise<void> {
+  await hass.callWS({ type: "neonplan3d/models/save", model });
+}
+
+/** Forgets one of the user's own furniture models. Admins only. */
+export async function deleteModel(hass: HomeAssistant, modelId: string): Promise<void> {
+  await hass.callWS({ type: "neonplan3d/models/delete", model_id: modelId });
+}
+
 export async function listPacks(hass: HomeAssistant): Promise<FurniturePack[]> {
   const res = await hass.callWS<{ packs: FurniturePack[] }>({ type: "neonplan3d/packs/list" });
   return res.packs;
@@ -454,22 +464,24 @@ export interface BackupFile {
   exported_at?: string;
   building: Building;
   packs?: FurniturePack[];
+  /** The user's own furniture models (my-models.ts), since the fork's model upload. */
+  models?: PackItem[];
   images?: Record<string, string>;
   main?: { name: string | null; icon: string | null; site: PlanSite | null };
   plans?: (Omit<PlanEntry, "revision" | "floors" | "rooms" | "furniture"> & { building: Building })[];
 }
 
-export function fetchBackup(hass: HomeAssistant): Promise<Pick<BackupFile, "format" | "version" | "building" | "packs" | "main" | "plans">> {
+export function fetchBackup(hass: HomeAssistant): Promise<Pick<BackupFile, "format" | "version" | "building" | "packs" | "models" | "main" | "plans">> {
   return hass.callWS({ type: "neonplan3d/backup/export" });
 }
 
 /** Replace plans and packs from a backup (pictures follow one by one); packs that fail their check are skipped. */
 export function restoreBackup(
   hass: HomeAssistant,
-  backup: Pick<BackupFile, "building" | "packs" | "main" | "plans">,
+  backup: Pick<BackupFile, "building" | "packs" | "models" | "main" | "plans">,
 ): Promise<{ revision: number; building: Building; packs: number; skipped: { id: string; reason: string }[] }> {
-  const { building, packs = [], main, plans } = backup;
-  return hass.callWS({ type: "neonplan3d/backup/import", building, packs, ...(plans ? { plans, ...(main ? { main } : {}) } : {}) });
+  const { building, packs = [], models, main, plans } = backup;
+  return hass.callWS({ type: "neonplan3d/backup/import", building, packs, ...(models ? { models } : {}), ...(plans ? { plans, ...(main ? { main } : {}) } : {}) });
 }
 
 /** Fetch a bought pack from the shop, signed for this installation (also updates it). */

@@ -25,7 +25,8 @@ import { copyText, PRINT_URL } from "../print.ts";
 import { FEATURES, FUN, knownFeature, manualUrl, registerUrl, released, shopUrl, unlockedFeatures, type Feature, packLacksModule } from "../features.ts";
 import type { Building } from "../model.ts";
 import { translate, type I18nKey } from "../i18n.ts";
-import { packName, type FurniturePack } from "../packs.ts";
+import { isLocalPack, packName, type FurniturePack } from "../packs.ts";
+import "./my-models.ts";
 import { moduleWaits } from "../modules.ts";
 import { boughtAnything, fitHints, fitText, offerFor } from "../fit-hints.ts";
 import { controls, tokens } from "../styles.ts";
@@ -187,6 +188,7 @@ export class Extensions extends LitElement {
         </div>
       </header>
       ${this.renderUpdates()} ${this.renderAccount()} ${this.renderSupporter()} ${this.renderNewsletter()} ${this.renderOffers()} ${this.renderShop()}
+      <fp3d-my-models .hass=${this.hass} .packs=${this.packs}></fp3d-my-models>
       <section class="fp3d-ext-card">
         <h3>${this.t("ext_pro")}</h3>
         <div class="fp3d-ext-pro">
@@ -536,7 +538,8 @@ export class Extensions extends LitElement {
 
   private renderPacks() {
     // modules and Pro add-ons (modules soon) have their own section below: here only packs with furniture
-    const packs = (this.packs ?? []).filter((p) => !p.module && !p.features?.length);
+    // the user's own models have their section of their own (my-models.ts)
+    const packs = (this.packs ?? []).filter((p) => !p.module && !p.features?.length && !isLocalPack(p));
     const items = packs.reduce((s, p) => s + p.items.length, 0);
     return html`<section class="fp3d-ext-card">
       <h3>${this.t("packs")}</h3>
@@ -565,7 +568,7 @@ export class Extensions extends LitElement {
 
   /** Modules: signed packs that carry code – and the Pro add-ons, which become modules (the editor's ⚙ Module dialog shows the same list). */
   private renderModules() {
-    const modules = (this.packs ?? []).filter((p) => p.module || p.features?.length);
+    const modules = (this.packs ?? []).filter((p) => (p.module || p.features?.length) && !isLocalPack(p));
     const pro = modules.filter((p) => !p.module).length;
     const waiting = modules.filter((p) => moduleWaits(p));
     return html`<section class="fp3d-ext-card">

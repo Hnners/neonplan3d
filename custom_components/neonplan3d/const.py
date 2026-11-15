@@ -13,6 +13,8 @@ STORAGE_KEY_BUILDING = f"{DOMAIN}.building"
 STORAGE_KEY_IMAGES = f"{DOMAIN}.images"
 STORAGE_KEY_HISTORY = f"{DOMAIN}.history"
 STORAGE_KEY_PACKS = f"{DOMAIN}.packs"
+# the user's own uploaded furniture models (models.py)
+STORAGE_KEY_MODELS = f"{DOMAIN}.models"
 STORAGE_KEY_LICENSE = f"{DOMAIN}.license"
 # the index of the floor plans (names, order, where they stand on the property, the bin); the first plan, "main",
 # is the one every installation had before and stays in the stores above, each further plan has stores of its own
