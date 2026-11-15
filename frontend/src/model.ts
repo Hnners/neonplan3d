@@ -336,6 +336,8 @@ export interface Furniture {
   tilt?: number;
   /** LED strip: rising along its length (°; up the stairs, a handrail; D539); its height above the floor is its middle. */
   rise?: number;
+  /** Kept whole in the cut view, though taller than the cut height (a bookcase): not cut with the walls. */
+  no_cut?: boolean;
   /** LED strip: standing upright – its length runs up from the mount height (door frame, light column). */
   upright?: boolean;
   /** Ceiling fan with light (D606): its fan entity – the blades turn with its speed (the light is `entity`). */

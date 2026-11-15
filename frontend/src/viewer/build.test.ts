@@ -387,3 +387,18 @@ test("a free wall's own colour shows on both its sides in the homely styles, in 
     setNaturalPalette(false);
   }
 });
+
+test("tall furniture is cut with the walls unless it is kept whole", () => {
+  // the fold attribute marks the parts above the cut (hidden in the cut view): FURN_OFFSET (64) and up
+  const above = (no_cut: boolean) => {
+    const shelf: Furniture = { id: "s", type: "shelf", x: 2, z: 0.3, rotation: 0, w: 0.9, d: 0.37, h: 1.98, variant: null, no_cut };
+    const geo = buildFloorGeometry(floorWith([rect("a", 0, 0, 4, 3)], [], [shelf]), EXT, INT);
+    const t = geo.furnitureTris.find((x) => x.id === "s")!;
+    const fold = (geo.walls as BufferGeometry).getAttribute("fold");
+    let n = 0;
+    for (let i = t.start; i < t.end; i++) if (fold.getX(i) >= 64) n++;
+    return n;
+  };
+  assert.ok(above(false) > 0, "a 2 m shelf is cut at the cut height");
+  assert.equal(above(true), 0, "kept whole, nothing of it is cut away");
+});

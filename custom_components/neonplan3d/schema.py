@@ -370,6 +370,8 @@ FURNITURE_SCHEMA = vol.Schema(
         vol.Optional("service2"): vol.Any(None, vol.All(str, vol.Length(max=255))),
         vol.Optional("service2_min"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0, max=1000))),
         vol.Optional("door_alarm"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0.5, max=120))),
+        # kept whole in the cut view though taller than the cut height (a bookcase)
+        vol.Optional("no_cut"): bool,
         # LED strip: tilt about its length (degrees) and standing upright
         vol.Optional("tilt", default=0.0): vol.All(vol.Coerce(float), vol.Range(min=-90, max=90)),
         vol.Optional("upright", default=False): bool,

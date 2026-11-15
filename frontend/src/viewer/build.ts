@@ -572,7 +572,8 @@ export function buildFloorGeometry(
     }
     pushFurniture(wallBuf, lines, shadow, f, base);
     // a wardrobe or a stair reaching above the cut height is cut with the walls, so it hides nothing behind it
-    if (base + f.h > cut + 0.05) {
+    // (unless it is to stay whole: a bookcase the user wants to see in full)
+    if (!f.no_cut && base + f.h > cut + 0.05) {
       cutAbove(wallBuf, start, cut, FURN_OFFSET);
       cutLinesAbove(lines, l0, cut, FURN_OFFSET);
     }
