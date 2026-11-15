@@ -111,6 +111,13 @@
       // furniture packs: the invented demo pack, plus local pack sources from private/ (not in git)
       let importedPacks = null;
       const moduleCode = {};
+      function previewModels() {
+        try {
+          return JSON.parse(localStorage.getItem("neonplan3d.preview.models") ?? "[]");
+        } catch {
+          return [];
+        }
+      }
       async function previewPacks() {
         if (importedPacks === null) {
           importedPacks = [DEMO_PACK];
@@ -332,8 +339,19 @@
             case "neonplan3d/image/set":
               images[msg.image_id] = msg.data;
               return null;
-            case "neonplan3d/packs/list":
-              return { packs: await previewPacks() };
+            case "neonplan3d/packs/list": {
+              // the user's own models (models/save) as their own pack, like the integration serves them
+              const models = previewModels();
+              return { packs: [...(await previewPacks()), ...(models.length ? [{ id: "local.models", name: "My models", publisher: "You", licensee: null, local: true, items: models }] : [])] };
+            }
+            case "neonplan3d/models/save": {
+              const models = previewModels().filter((m) => m.id !== msg.model.id);
+              localStorage.setItem("neonplan3d.preview.models", JSON.stringify([...models, msg.model]));
+              return { id: msg.model.id };
+            }
+            case "neonplan3d/models/delete":
+              localStorage.setItem("neonplan3d.preview.models", JSON.stringify(previewModels().filter((m) => m.id !== msg.model_id)));
+              return {};
             case "neonplan3d/packs/import": {
               // the preview cannot check signatures: a file with a payload counts as valid
               const data = JSON.parse(msg.pack);

@@ -6,13 +6,17 @@
 import { Color } from "three";
 import type { Furniture, Vec2 } from "../model.ts";
 import { builtinBase, gangsOf, stairsULayout, POOL_VALVE_Y } from "../model.ts";
-import { adventCandles, isRobotVacuum, mountBase, packItem, packMotion, packMovingPart, packRobotCentre, packRobotPart, packScreen, packSpinAxis, type PackItem, type PackMotion, type PackPart } from "../packs.ts";
+import { adventCandles, isRobotVacuum, mountBase, packItem, packMotion, packMovingPart, packRobotCentre, packRobotPart, packScreen, packSpinAxis, type PackItem, type PackMesh, type PackMotion, type PackPart } from "../packs.ts";
 import { fitParts } from "../pack-scale.ts";
+import { unpackMesh } from "../mesh-part.ts";
 import { hasLiveParts, liveKey, type PartBind } from "../live-parts.ts";
 import { binColors, binShape, householdCountry, mailboxShape, type BinShape, type MailboxShape } from "../household.ts";
 import type { Floor } from "../model.ts";
 import { ALWAYS, DEG, EDGE_TOP, GeoBuffer, LineBuffer, pushLoft, pushLyingCyl, pushPrism, shade } from "./geo.ts";
 import { hexColor, naturalPalette, palette } from "./palette.ts";
+
+/** Where the fake light comes from (x, z), as for the boxes in geo.ts: faces turned to it are a little brighter. */
+const LIGHT: Vec2 = [-0.55, 0.83];
 
 const BASE = palette({
   body: 0x172238,
@@ -152,6 +156,60 @@ class Builder {
     }
     pushPrism(this.buf, ccw(poly), y0, y1, side, top, { aoFrom: 0, bottom: y0 > 0.05 });
     if (edges) for (let i = 0; i < n; i++) this.line(poly[i], poly[(i + 1) % n], y1, y1, edges);
+  }
+
+  /**
+   * The triangles of a mesh part (one of the user's own models) filling the box x0 … x1, y0 … y1, z0 … z1. Shaded like
+   * the other furniture: faces looking up take `top`, the others `side`, a little brighter where they face the light
+   * and darker towards the floor and underneath. `edges` draws the mesh's creases and open borders.
+   */
+  mesh(m: PackMesh, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, side: number, top = side, edges: Color | null = null): void {
+    const { v, t, edges: lines } = unpackMesh(m);
+    const sx = x1 - x0;
+    const sy = y1 - y0;
+    const sz = z1 - z0;
+    const at = (i: number): number[] => {
+      const p = this.tf(x0 + v[i * 3] * sx, z0 + v[i * 3 + 2] * sz);
+      return [p[0], y0 + v[i * 3 + 1] * sy, p[1]];
+    };
+    const topC = new Color(top);
+    const k = (y: number) => 0.5 + 0.5 * Math.min(1, Math.max(0, y / 1.6));
+    for (let f = 0; f + 2 < t.length; f += 3) {
+      const a = at(t[f]);
+      const b = at(t[f + 1]);
+      const c = at(t[f + 2]);
+      // the face's normal in world space (the corners are turned and maybe mirrored already)
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+      const wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
+      let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+      const l = Math.hypot(nx, ny, nz);
+      if (l < 1e-12) continue;
+      if (this.mirrored) {
+        nx = -nx;
+        ny = -ny;
+        nz = -nz;
+      }
+      nx /= l;
+      ny /= l;
+      nz /= l;
+      const [p, q, r] = this.mirrored ? [a, c, b] : [a, b, c];
+      if (ny > 0.7) {
+        this.buf.tri(p, q, r, topC, topC, topC);
+        continue;
+      }
+      if (ny < -0.7) {
+        const under = shade(side, 0.55);
+        this.buf.tri(p, q, r, under, under, under);
+        continue;
+      }
+      const h = Math.hypot(nx, nz) || 1;
+      const facing = ((nx / h) * LIGHT[0] + (nz / h) * LIGHT[1] + 1) / 2;
+      const dir = (0.8 + 0.28 * facing) * (ny < 0 ? 1 + ny * 0.4 : 1);
+      this.buf.tri(p, q, r, shade(side, k(p[1]) * dir), shade(side, k(q[1]) * dir), shade(side, k(r[1]) * dir));
+    }
+    if (edges) {
+      for (let i = 0; i + 1 < lines.length; i += 2) this.lines.seg(at(lines[i]), at(lines[i + 1]), edges, ALWAYS);
+    }
   }
 
   /** Line between two local points at heights ya and yb. */
@@ -1959,7 +2017,9 @@ function packModel(
     const edges = p.edges === "glow" ? EDGE_TOP : p.edges === "faint" ? EDGE_FAINT : p.edges ? EDGE_FURN : null;
     // a turned part draws through a builder whose coordinates turn around the part's centre
     const bb = p.rot ? b.rotated(p.x * w, p.z * d, p.rot) : b;
-    if (p.shape === "cyl" && (p.axis === "x" || p.axis === "z")) {
+    if (p.shape === "mesh") {
+      if (p.mesh) bb.mesh(p.mesh, (p.x - p.w / 2) * w, (p.x + p.w / 2) * w, y0, y1, (p.z - p.d / 2) * d, (p.z + p.d / 2) * d, side, top, edges);
+    } else if (p.shape === "cyl" && (p.axis === "x" || p.axis === "z")) {
       bb.lyingCyl(p.axis, p.x * w, p.z * d, y0, y1, p.axis === "x" ? p.w * w : p.d * d, p.axis === "x" ? p.d * d : p.w * w, side, top, 14, edges);
     } else if (p.shape === "cyl") bb.cyl(p.x * w, p.z * d, (Math.min(p.w * w, p.d * d)) / 2, y0, y1, side, top, 14, edges);
     else if (p.shape === "loft") {

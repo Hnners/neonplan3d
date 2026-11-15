@@ -37,6 +37,7 @@ from .const import (
     STORAGE_KEY_HISTORY,
     STORAGE_KEY_IMAGES,
     STORAGE_KEY_LICENSE,
+    STORAGE_KEY_MODELS,
     STORAGE_KEY_PACKS,
     STORAGE_KEY_PLANS,
     STORAGE_MINOR_VERSION,
@@ -197,6 +198,7 @@ class FloorplanData:
         self.hass = hass
         self._image_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY_IMAGES, **_OFF_LOOP)
         self._pack_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY_PACKS)
+        self._model_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY_MODELS, **_OFF_LOOP)
         self._plans_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY_PLANS)
         self._license_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY_LICENSE)
         self.main = PlanData(hass, MAIN_PLAN)
@@ -210,6 +212,8 @@ class FloorplanData:
         self._images: dict[str, str] = {}
         # imported furniture packs (checked payloads, see packs.py)
         self.packs: list[dict[str, Any]] = []
+        # the user's own furniture models (checked, see models.py)
+        self.models: list[dict[str, Any]] = []
         # the shop connection (see license.py): key, licensee, catalog of bought packs, last check
         self.license: dict[str, Any] = {"key": None, "licensee": None, "catalog": [], "checked_at": None, "error": None}
 
@@ -237,6 +241,8 @@ class FloorplanData:
             await self._load_index(index)
         packs = await self._pack_store.async_load()
         self.packs = list((packs or {}).get("packs", []))
+        models = await self._model_store.async_load()
+        self.models = list((models or {}).get("models", []))
         stored_license = await self._license_store.async_load()
         if stored_license:
             self.license = {**self.license, **stored_license}
@@ -434,6 +440,25 @@ class FloorplanData:
         """Replace the packs from a backup."""
         self.packs = packs
         await self._pack_store.async_save({"packs": self.packs})
+
+    async def async_save_model(self, model: dict[str, Any]) -> None:
+        """Keep a model of the user's own; one with the same id is replaced."""
+        self.models = [m for m in self.models if m["id"] != model["id"]] + [model]
+        await self._model_store.async_save({"models": self.models})
+
+    async def async_delete_model(self, model_id: str) -> bool:
+        """Forget a model; False when there is none with this id."""
+        kept = [m for m in self.models if m["id"] != model_id]
+        if len(kept) == len(self.models):
+            return False
+        self.models = kept
+        await self._model_store.async_save({"models": self.models})
+        return True
+
+    async def async_restore_models(self, models: list[dict[str, Any]]) -> None:
+        """Replace the models from a backup."""
+        self.models = models
+        await self._model_store.async_save({"models": self.models})
 
     async def async_restore(self, building: dict[str, Any], packs: list[dict[str, Any]]) -> int:
         """Replace the main plan and the packs from a backup; the state before becomes a restore point."""

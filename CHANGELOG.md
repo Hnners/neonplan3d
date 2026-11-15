@@ -4,6 +4,11 @@ All notable changes to NeonPlan 3D. The full notes in German and English are on 
 [releases page](https://github.com/Mastershort/neonplan3d/releases). Ideas and votes:
 [Discussions → Ideas](https://github.com/Mastershort/neonplan3d/discussions/categories/ideas).
 
+## 3.5.0 (Hnners fork)
+
+### Added
+- **My models:** upload your own furniture as a 3D file (.glb) under Extensions › My models, set its size and placement, choose what it works as (just furniture, an appliance, a lamp with its light style, a ceiling fan, a TV or screen, or a sensor) and tick which parts glow, turn or show a picture; it then stands in the furniture library under My models, binds to entities like the built-in pieces, and goes along in backups.
+
 ## 3.4.0
 
 ### Added
