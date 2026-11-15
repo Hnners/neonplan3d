@@ -4,6 +4,11 @@ All notable changes to NeonPlan 3D. The full notes in German and English are on 
 [releases page](https://github.com/Mastershort/neonplan3d/releases). Ideas and votes:
 [Discussions → Ideas](https://github.com/Mastershort/neonplan3d/discussions/categories/ideas).
 
+## 3.5.2 (Hnners fork)
+
+### Added
+- **Keep whole in cut view:** furniture taller than the cut height, like a bookcase, has a tick box that keeps it at full height in the cut view instead of being cut off with the walls.
+
 ## 3.5.1 (Hnners fork)
 
 ### Added

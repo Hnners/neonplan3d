@@ -12023,6 +12023,12 @@ export class Fp3dEditor extends LitElement {
               ${f.mount_y != null ? html`<button class="fp3d-btn fp3d-field-btn" ?disabled=${!admin} @click=${() => this.updateFurniture({ mount_y: null })}>${this.t("height_auto")}</button>` : nothing}`
           : nothing}
       </div>
+      ${this.floor && !isLamp(f.type) && (f.mount_y ?? mountBase(this.floor, f)) + f.h > Math.min(this.floor.cut_height, this.floor.height) + 0.05
+        ? html`<label class="fp3d-check" title=${this.t("no_cut_hint")}
+            ><input type="checkbox" .checked=${!!f.no_cut} ?disabled=${!admin} @change=${(ev: Event) => this.updateFurniture({ no_cut: (ev.target as HTMLInputElement).checked || undefined })} />
+            ${this.t("no_cut")}</label
+          >`
+        : nothing}
       ${this.renderFinish(f)} ${this.renderLiveSlots(f)}
       ${f.type === "stairs" ? html`<p class="fp3d-sub">${this.t("stairs_hint")}</p>` : nothing}
       ${f.type === "stairs_u" ? html`<p class="fp3d-sub">${this.t("stairs_u_hint")}</p>` : nothing}
