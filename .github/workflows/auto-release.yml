@@ -1,0 +1,43 @@
+name: Auto release
+
+# In the Hnners fork: when a version bump in manifest.json reaches main, publish the release for it
+# (tag v<version>, the notes from that version's section of CHANGELOG.md), so the Marketplace offers the
+# update without a release made by hand. Does nothing when the release already exists.
+on:
+  push:
+    branches: [main]
+    paths: [custom_components/neonplan3d/manifest.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the release for the manifest version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('custom_components/neonplan3d/manifest.json'))['version'])")
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "v$version is already released"
+            exit 0
+          fi
+          python3 - "$version" > notes.md <<'PY'
+          import re, sys
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(r"^## " + re.escape(sys.argv[1]) + r"\b.*?\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+          print(m.group(1).strip() if m else "See CHANGELOG.md.")
+          PY
+          title=$(python3 - "$version" <<'PY'
+          import re, sys
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(r"^## " + re.escape(sys.argv[1]) + r"\b.*?\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+          names = re.findall(r"^- \*\*(.+?):?\*\*", m.group(1), re.M) if m else []
+          print(f"{sys.argv[1]}: {', '.join(n.rstrip(':') for n in names)}" if names else sys.argv[1])
+          PY
+          )
+          gh release create "v$version" --target "$GITHUB_SHA" --title "$title" --notes-file notes.md
