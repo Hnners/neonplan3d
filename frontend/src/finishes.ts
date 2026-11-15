@@ -7,8 +7,8 @@
 import type { Furniture } from "./model.ts";
 import type { PackItem } from "./packs.ts";
 
-export type FinishRole = "wood" | "fabric" | "front";
-export const FINISH_ROLES: readonly FinishRole[] = ["wood", "fabric", "front"];
+export type FinishRole = "wood" | "fabric" | "front" | "body";
+export const FINISH_ROLES: readonly FinishRole[] = ["wood", "fabric", "front", "body"];
 
 /** The swatches of each role: a short id and its colour. */
 export const FINISH_SWATCHES: Record<FinishRole, readonly { id: string; hex: string }[]> = {
@@ -29,6 +29,17 @@ export const FINISH_SWATCHES: Record<FinishRole, readonly { id: string; hex: str
     { id: "rust", hex: "#a5583a" },
     { id: "mustard", hex: "#c9a03a" },
     { id: "rose", hex: "#c99aa0" },
+  ],
+  // the body: a pack item's own main colour (leather, a lacquer, an uploaded model's main colour)
+  body: [
+    { id: "tan", hex: "#a8703f" },
+    { id: "cognac", hex: "#8a4b26" },
+    { id: "brown", hex: "#4a2f24" },
+    { id: "oxblood", hex: "#5e1f22" },
+    { id: "black", hex: "#262528" },
+    { id: "grey", hex: "#7d8288" },
+    { id: "cream", hex: "#e3d6bd" },
+    { id: "navy", hex: "#2e3c5a" },
   ],
   front: [
     { id: "white", hex: "#edebe7" },
@@ -75,7 +86,32 @@ export function finishRolesOf(type: string, pack: PackItem | null): FinishRole[]
   if (used.has("wood")) out.push("wood");
   if (used.has("fabric") || used.has("cushion")) out.push("fabric");
   if (used.has("white")) out.push("front");
+  if (bodyHex(pack)) out.push("body");
   return out;
+}
+
+/**
+ * A pack item's own main colour: the fixed "#rrggbb" most of its parts have (a leather sofa's leather), or null
+ * when its parts take the palette's roles only. The body finish replaces this colour.
+ */
+export function bodyHex(pack: PackItem): string | null {
+  const count = new Map<string, number>();
+  for (const p of pack.parts) {
+    if (p.glow || p.screen || !p.color?.startsWith("#")) continue;
+    const c = p.color.toLowerCase();
+    count.set(c, (count.get(c) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let n = 0;
+  for (const [c, k] of count) if (k > n) [best, n] = [c, k];
+  return best;
+}
+
+/** Whether an item's fabric role only colours cushions (a leather sofa): its label then says so. */
+export function fabricIsCushions(pack: PackItem | null): boolean {
+  if (!pack) return false;
+  const used = new Set(pack.parts.flatMap((p) => [p.color, p.top]));
+  return used.has("cushion") && !used.has("fabric");
 }
 
 /** The colour a placed item takes for a role, or null for the look's own. */

@@ -14,6 +14,7 @@ import { binColors, binShape, householdCountry, mailboxShape, type BinShape, typ
 import type { Floor } from "../model.ts";
 import { ALWAYS, DEG, EDGE_TOP, GeoBuffer, LineBuffer, pushLoft, pushLyingCyl, pushPrism, shade } from "./geo.ts";
 import { hexColor, naturalPalette, palette } from "./palette.ts";
+import { bodyHex } from "../finishes.ts";
 
 /** Where the fake light comes from (x, z), as for the boxes in geo.ts: faces turned to it are a little brighter. */
 const LIGHT: Vec2 = [-0.55, 0.83];
@@ -42,6 +43,8 @@ const BASE = palette({
  * homely styles only (the neon looks colour every item themselves).
  */
 let finish: Partial<Record<keyof typeof BASE, number>> | null = null;
+/** The placed item's own body colour while it is built (finishes.ts bodyHex), null without one or in a neon look. */
+let bodyFinish: number | null = null;
 const C = new Proxy(BASE, { get: (t, k) => (finish && typeof k === "string" && k in finish ? finish[k as keyof typeof BASE] : Reflect.get(t, k)) }) as typeof BASE;
 
 /** The role colours a finish gives (tops and cushions a little lighter), null without one or in a neon look. */
@@ -1687,11 +1690,14 @@ function pushUpright(buf: GeoBuffer, lines: LineBuffer, shadow: GeoBuffer, f: Fu
 
 function buildFurniture(buf: GeoBuffer, lines: LineBuffer, shadow: GeoBuffer, f: Furniture, base: number, still = false): void {
   const before = finish;
+  const beforeBody = bodyFinish;
   finish = finishColors(f);
+  bodyFinish = naturalPalette() ? hexColor(f.finish?.body) : null;
   try {
     buildModel(buf, lines, shadow, f, base, still);
   } finally {
     finish = before;
+    bodyFinish = beforeBody;
   }
 }
 
@@ -1999,6 +2005,8 @@ function packModel(
 ): void {
   const onlyGlow = !!only;
   const advent = item.parts.some((p) => p.advent) ? adventCandles() : 4;
+  // the body finish replaces the item's main fixed colour (its top a little lighter, like the other finishes)
+  const body = bodyFinish !== null ? bodyHex(item) : null;
   for (const q of fitParts(item, w, d, h)) {
     if (skip?.(q)) continue;
     // an Advent candle's flame burns only from its Sunday on
@@ -2007,9 +2015,10 @@ function packModel(
     if (only && !only(q)) continue;
     const p = onlyGlow ? { ...q, glow: true, w: q.w + 0.006 / w, d: q.d + 0.006 / d, y: Math.max(0, q.y - 0.002 / h), h: q.h + 0.004 / h } : q;
     const lit = p.glow && glow !== null;
-    const side = lit ? glow : (packColor(p.color, false) ?? C.body);
+    const isBody = body !== null && p.color?.toLowerCase() === body;
+    const side = lit ? glow : isBody ? bodyFinish! : (packColor(p.color, false) ?? C.body);
     // without a top colour, the top is the role's top shade or a little lighter
-    const top = lit ? glow : (packColor(p.top, false) ?? packColor(p.color, true) ?? shade(side, 1.25).getHex());
+    const top = lit ? glow : isBody ? shade(bodyFinish!, 1.12).getHex() : (packColor(p.top, false) ?? packColor(p.color, true) ?? shade(side, 1.25).getHex());
     const y0 = base + p.y * h;
     const y1 = base + Math.min(h, (p.y + p.h) * h);
     const c0 = b.colors.length;
@@ -2240,11 +2249,14 @@ export function pushPackLive(buf: GeoBuffer, item: PackItem, w: number, d: numbe
   // the edges move with the part (a neon door keeps its glowing outline); a status light has none
   const b = new Builder(buf, lit ? new LineBuffer() : lines, (x, z) => [x - pivot[0], z - pivot[2]]);
   const before = finish;
+  const beforeBody = bodyFinish;
   finish = finishColors(placed);
+  bodyFinish = naturalPalette() ? hexColor(placed.finish?.body) : null;
   try {
     packModel(b, { ...item, size: [W, D, H], parts: lit ? parts.map((p) => ({ ...p, glow: true })) : parts }, W, D, H, -pivot[1], lit ? 0xffffff : null);
   } finally {
     finish = before;
+    bodyFinish = beforeBody;
   }
   // its own colour: what a status light or a glowing part shows while no entity is linked
   return { pivot, bind, depth: D, rest: packColor(parts[0].color, false) ?? 0xffffff };

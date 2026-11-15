@@ -4,6 +4,11 @@ All notable changes to NeonPlan 3D. The full notes in German and English are on 
 [releases page](https://github.com/Mastershort/neonplan3d/releases). Ideas and votes:
 [Discussions → Ideas](https://github.com/Mastershort/neonplan3d/discussions/categories/ideas).
 
+## 3.5.1 (Hnners fork)
+
+### Added
+- **Upholstery finish:** furniture with its own fixed colour, like the leather sofas and armchairs, gets an Upholstery row in its Finish to recolour that leather, and the Fabric row of such items is called Cushions, as that is what it colours.
+
 ## 3.5.0 (Hnners fork)
 
 ### Added

@@ -26,7 +26,7 @@ import { isOutageSource } from "../outage.ts";
 import { SHOW_PRESENCE } from "../flags.ts";
 import { hasFeature, labOn, manualUrl, registerUrl, released, shopUrl, UNRELEASED } from "../features.ts";
 import { fitText, type HintKey } from "../fit-hints.ts";
-import { FINISH_ROLES, FINISH_SWATCHES, finishHex, finishRolesOf, type FinishRole } from "../finishes.ts";
+import { fabricIsCushions, FINISH_ROLES, FINISH_SWATCHES, finishHex, finishRolesOf, type FinishRole } from "../finishes.ts";
 import { hasLiveParts, type PackSlot } from "../live-parts.ts";
 import { loadLocate } from "../load-locate.ts";
 import { isBeta, supporterUrl } from "../beta.ts";
@@ -11883,8 +11883,11 @@ export class Fp3dEditor extends LitElement {
    * from; "for all the same" gives every item of this kind in the plan the same finish.
    */
   private renderFinish(f: Furniture) {
-    const roles = finishRolesOf(f.type, packItem(f.type) ?? null);
+    const pack = packItem(f.type) ?? null;
+    const roles = finishRolesOf(f.type, pack);
     if (!roles.length) return nothing;
+    // a leather sofa's "fabric" is its cushions only: the row says so
+    const label = (role: FinishRole) => fitText(lang, (role === "fabric" && fabricIsCushions(pack) ? "finish_cushions" : `finish_${role}`) as HintKey);
     const admin = this.isAdmin;
     const lang = this.hass?.language;
     const set = (role: FinishRole, hex: string | null) => {
@@ -11903,7 +11906,7 @@ export class Fp3dEditor extends LitElement {
       ${roles.map((role) => {
         const cur = finishHex(f, role);
         return html`<div class="fp3d-finish-row">
-          <span class="fp3d-finish-label">${fitText(lang, `finish_${role}` as HintKey)}</span>
+          <span class="fp3d-finish-label">${label(role)}</span>
           <button class="fp3d-swatch fp3d-swatch-own ${cur ? "" : "on"}" title=${fitText(lang, "finish_own")} aria-label=${fitText(lang, "finish_own")} ?disabled=${!admin} @click=${() => set(role, null)}></button>
           ${FINISH_SWATCHES[role].map(
             (sw) => html`<button class="fp3d-swatch ${cur?.toLowerCase() === sw.hex ? "on" : ""}" style="background:${sw.hex}" title=${sw.hex} aria-label=${sw.id} ?disabled=${!admin} @click=${() => set(role, sw.hex)}></button>`,
