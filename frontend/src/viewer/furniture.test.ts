@@ -368,3 +368,28 @@ test("a finish colours a sofa's fabric in the homely styles only, and live parts
   pushPackLive(new GeoBuffer(), packItem("pack:t.live:cab")!, 1, 0.5, 1, liveKey({ slot: "door", kind: "open" }), {}, lines);
   assert.ok(lines.p.length > 0);
 });
+
+test("the body finish recolours a pack item's own leather in the homely styles only", async () => {
+  const { setNaturalPalette } = await import("./palette.ts");
+  // a leather chair: a brown body of one fixed colour and a cushion
+  setPacks([{ id: "t.leather", name: "Leather", publisher: "t", licensee: null, items: [{ id: "chair", name: { en: "Chair" }, size: [0.9, 0.9, 0.8], parts: [{ shape: "box", x: 0, z: 0, w: 1, d: 1, y: 0, h: 0.5, color: "#4a2f24" }, { shape: "box", x: 0, z: 0.1, w: 1, d: 0.2, y: 0.5, h: 0.5, color: "#4a2f24" }, { shape: "box", x: 0, z: 0, w: 0.8, d: 0.6, y: 0.5, h: 0.1, color: "cushion" }] }] }]);
+  const chair = (finish: Furniture["finish"]) => {
+    const buf = new GeoBuffer();
+    pushFurniture(buf, new LineBuffer(), new GeoBuffer(), { id: "c", type: "pack:t.leather:chair", x: 0, z: 0, rotation: 0, w: 0.9, d: 0.9, h: 0.8, variant: null, finish } as Furniture);
+    return buf.c;
+  };
+  // navy (#2e3c5a): blue over red somewhere; the brown leather is red over blue everywhere
+  const hasBlue = (c: number[]) => {
+    for (let i = 0; i < c.length; i += 3) if (c[i + 2] > c[i] * 1.5 && c[i + 2] > 0.02) return true;
+    return false;
+  };
+  setNaturalPalette(true);
+  try {
+    assert.equal(hasBlue(chair({ body: "#2e3c5a" })), true);
+    assert.equal(hasBlue(chair(null)), false);
+  } finally {
+    setNaturalPalette(false);
+  }
+  assert.deepEqual(chair({ body: "#2e3c5a" }), chair(null), "the neon looks keep their own colours");
+  setPacks([]);
+});
