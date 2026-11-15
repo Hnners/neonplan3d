@@ -136,3 +136,55 @@ export function snapToWall(floor: Floor, f: Furniture, wallInterior: number, rea
   }
   return best ? { x: best.x, z: best.z, rotation: best.rotation } : null;
 }
+
+/** An item's footprint on the plan, as its axis-aligned box (a turned item: the box around it). */
+export function footprint(f: Pick<Furniture, "x" | "z" | "w" | "d" | "rotation">): { x0: number; x1: number; z0: number; z1: number } {
+  const a = (f.rotation * Math.PI) / 180;
+  const c = Math.abs(Math.cos(a));
+  const s = Math.abs(Math.sin(a));
+  const hx = (c * f.w + s * f.d) / 2;
+  const hz = (s * f.w + c * f.d) / 2;
+  return { x0: f.x - hx, x1: f.x + hx, z0: f.z - hz, z1: f.z + hz };
+}
+
+/**
+ * Where a dragged item lands: an edge of it flush with an edge of a piece of furniture beside it (within `reach`),
+ * else an edge (or its centre) on the grid, whichever is nearest. So items of any size line up with the grid lines
+ * and with each other, not only their centres.
+ */
+export function snapFurnitureEdges(
+  f: Pick<Furniture, "x" | "z" | "w" | "d" | "rotation">,
+  others: readonly Pick<Furniture, "x" | "z" | "w" | "d" | "rotation">[],
+  grid: number,
+  reach: number,
+): { x: number; z: number; aligned: { x: number | null; z: number | null } } {
+  const box = footprint(f);
+  const hx = (box.x1 - box.x0) / 2;
+  const hz = (box.z1 - box.z0) / 2;
+  const boxes = others.map(footprint);
+  const axis = (pos: number, half: number, lo: "x0" | "z0", hi: "x1" | "z1", crossLo: number, crossHi: number, cLo: "x0" | "z0", cHi: "x1" | "z1") => {
+    // 1. flush with a neighbour: only pieces beside it on the other axis (overlapping or within reach)
+    let best: { at: number; line: number } | null = null;
+    let bestD = reach;
+    for (const b of boxes) {
+      if (b[cHi] < crossLo - reach || b[cLo] > crossHi + reach) continue;
+      for (const line of [b[lo], b[hi]]) {
+        for (const at of [line + half, line - half]) {
+          const dd = Math.abs(at - pos);
+          if (dd < bestD) {
+            bestD = dd;
+            best = { at, line };
+          }
+        }
+      }
+    }
+    if (best) return { at: best.at, line: best.line as number | null };
+    // 2. the grid: the low edge, the high edge or the centre on a grid line, whichever moves it least
+    const options = [Math.round((pos - half) / grid) * grid + half, Math.round((pos + half) / grid) * grid - half, Math.round(pos / grid) * grid];
+    const at = options.reduce((p, q) => (Math.abs(q - pos) < Math.abs(p - pos) ? q : p));
+    return { at, line: null as number | null };
+  };
+  const sx = axis(f.x, hx, "x0", "x1", box.z0, box.z1, "z0", "z1");
+  const sz = axis(f.z, hz, "z0", "z1", box.x0, box.x1, "x0", "x1");
+  return { x: sx.at, z: sz.at, aligned: { x: sx.line, z: sz.line } };
+}

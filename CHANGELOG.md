@@ -4,6 +4,11 @@ All notable changes to NeonPlan 3D. The full notes in German and English are on 
 [releases page](https://github.com/Mastershort/neonplan3d/releases). Ideas and votes:
 [Discussions → Ideas](https://github.com/Mastershort/neonplan3d/discussions/categories/ideas).
 
+## 3.5.3 (Hnners fork)
+
+### Changed
+- **Placing furniture:** a dragged item now lines up by its edges, flush against the furniture beside it (with a guide line) or with an edge on the grid, instead of only its centre snapping to the grid; hold Alt to place it freely.
+
 ## 3.5.2 (Hnners fork)
 
 ### Added
