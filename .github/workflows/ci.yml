@@ -61,8 +61,9 @@ jobs:
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
-    # HACS reads the repository from outside, which fails while it is private
-    if: ${{ !github.event.repository.private }}
+    # HACS reads the repository from outside, which fails while it is private. A fork is skipped too: these are
+    # the checks for the default store listing (issues, topics), which a custom repository does not need
+    if: ${{ !github.event.repository.private && !github.event.repository.fork }}
     runs-on: ubuntu-latest
     steps:
       - uses: hacs/action@main
