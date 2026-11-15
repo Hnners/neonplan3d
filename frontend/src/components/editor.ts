@@ -16,7 +16,7 @@ import { furnitureSymbol } from "./furniture2d.ts";
 import { clipConvex, netRoomArea } from "../geometry/area.ts";
 import { areaText, formatImperial, lengthText, lengthUnit, parseLength, unitLabel, type LengthUnit } from "../units.ts";
 import { closeGaps, straightenEdges, suggestedThickness } from "../geometry/gaps.ts";
-import { clampIntoRoom, keepInRoom, sharedEdge, snapToWall } from "../geometry/snap.ts";
+import { clampIntoRoom, keepInRoom, sharedEdge, snapFurnitureEdges, snapToWall } from "../geometry/snap.ts";
 import { cornerPoint, nearestOnPath, onWall, pipePath, type P3 } from "../geometry/runs.ts";
 import { connectionsAt, laidPipe, nearestOnOutline, planConnection, poolNodeAt, runLead, runsOnWall, splitPipe, type Connection, type ConnectVia, type WallRun } from "../pool-runs.ts";
 import { devicePorts, FILTER_VALVES, jointPortAt, jointPorts, nodePart, poolPortFlow, portFlow, splitNode, type PortName } from "../pool-ports.ts";
@@ -2559,13 +2559,27 @@ export class Fp3dEditor extends LitElement {
         drag.moved = true;
         const f = drag.base.floors.find((x) => x.id === this._floorId)?.furniture.find((x) => x.id === drag.id);
         if (!f) return;
-        const g = e.altKey ? 0.01 : this._doc.settings.grid;
-        let x = round(Math.round((f.x + world[0] - drag.start[0]) / g) * g);
-        let z = round(Math.round((f.z + world[1] - drag.start[1]) / g) * g);
+        const rawX = f.x + world[0] - drag.start[0];
+        const rawZ = f.z + world[1] - drag.start[1];
+        let x: number;
+        let z: number;
         let rotation = f.rotation;
-        // near a wall: turn the back (or a side) to it and sit flush; Alt moves freely
-        const snap = e.altKey ? null : this.snapToWall({ ...f, x, z });
-        if (snap) ({ x, z, rotation } = snap);
+        this._guides = {};
+        if (e.altKey) {
+          // Alt: by the centimetre, no snapping
+          x = round(Math.round(rawX / 0.01) * 0.01);
+          z = round(Math.round(rawZ / 0.01) * 0.01);
+        } else {
+          // its edges line up: flush with the furniture beside it, else an edge (or its centre) on the grid
+          const others = (this.floor?.furniture ?? []).filter((m) => m.id !== f.id && !isLamp(m.type));
+          const s = snapFurnitureEdges({ ...f, x: rawX, z: rawZ }, others, this._doc.settings.grid, SNAP_PX / this._view.scale);
+          x = round(s.x);
+          z = round(s.z);
+          this._guides = { ...(s.aligned.x !== null ? { x: s.aligned.x } : {}), ...(s.aligned.z !== null ? { z: s.aligned.z } : {}) };
+          // near a wall: turn the back (or a side) to it and sit flush
+          const snap = this.snapToWall({ ...f, x, z });
+          if (snap) ({ x, z, rotation } = snap);
+        }
         this.change((_, floor) => patchItem(floor.furniture.find((q) => q.id === drag.id), { x, z, rotation }), drag.base, false);
         break;
       }
@@ -2737,6 +2751,8 @@ export class Fp3dEditor extends LitElement {
       case "poolport":
       case "pooljoint":
         if (drag.moved) this.pushHistory(drag.base);
+        // the alignment lines of a furniture drag go with it
+        if (drag.kind === "furniture") this._guides = {};
         // a tap on a port or a joint opens its card
         else if (drag.kind === "poolport" || drag.kind === "pooljoint") this.openCard(drag.pool, `${drag.kind === "poolport" ? "port" : "joint"}:${drag.id}`);
         break;
